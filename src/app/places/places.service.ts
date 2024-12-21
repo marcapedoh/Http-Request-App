@@ -1,7 +1,7 @@
 import { inject, Injectable, signal } from '@angular/core';
 
 import { Place } from './place.model';
-import { map, catchError, throwError } from 'rxjs';
+import { map, catchError, throwError, tap } from 'rxjs';
 import { HttpClient } from '@angular/common/http';
 
 @Injectable({
@@ -17,13 +17,24 @@ export class PlacesService {
   }
 
   loadUserPlaces() {
-    return this.fetchPlaces("http://localhost:3000/user-places", "Something went wrong fetching your favorite places. Please try again later.")
-   }
+    return this.fetchPlaces("http://localhost:3000/user-places", "Something went wrong fetching your favorite places. Please try again later.").pipe(tap({
+      next: (userPlaces) => this.userPlaces.set(userPlaces)
+    }))
+  }
 
   addPlaceToUserPlaces(place: Place) {
+    const prevPlaces=this.userPlaces();
+    if(!prevPlaces.some((p)=> p.id===place.id)){
+      this.userPlaces.set([...prevPlaces, place])
+    }
     return this.httpClient.put('http://localhost:3000/user-places', {
       placeId: place.id,
-    })
+    }).pipe(
+      catchError(error=>{
+        this.userPlaces.set(prevPlaces);
+        return throwError(()=> new Error("Failed to sstore selected place."))
+      })
+    )
   }
 
   removeUserPlace(place: Place) { }
